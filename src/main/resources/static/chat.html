@@ -6,13 +6,15 @@
     <link rel="stylesheet" href="lib/element-ui/index.css">
 
     <style type="text/css">
-        #outputTxt{
-            height: 400px;
+        #outputCard{
+            height: 300px;
+            overflow:auto;
         }
 
-
-
-
+        #inputCard{
+            height: 100px;
+            overflow:auto;
+        }
 
     </style>
 
@@ -25,7 +27,13 @@
 
 <div id="chatWindow">
     <el-row id="outputArea">
-        <el-card id="outputTxt">
+        <el-card id="inputCard">
+            <div id="inputTxt">
+            </div>
+        </el-card>
+        <el-card id="outputCard">
+            <div id="outputTxt">
+            </div>
         </el-card>
     </el-row>
     <el-row id="inputArea">
@@ -56,15 +64,17 @@
 
  //点击事件
  $('#sendBtn').click(function(){
-     $('.el-card__body').html('');
-     var inputText = $('#sendTxt').val();
+     $('#outputTxt').html('');
+     var sendTxt = $('#sendTxt').val();
+     $('#inputTxt').html(sendTxt);
+     $('#sendTxt').val('');
 
      //发送请求
      $.ajax({
         type: "post",
         url:"/chat/sendMsg",
         data:{
-            msg: inputText
+            msg: sendTxt
         },
         contentType: 'application/x-www-form-urlencoded',
         success:function(data){
@@ -74,15 +84,24 @@
              });
              eventSource.addEventListener("message", function(evt){
                 var data = evt.data;
-                $('.el-card__body').html($('.el-card__body').html()+data)
+                var json = JSON.parse(data);
+                var content = json.content ? json.content : '';
+                content = content.replaceAll('\n','<br/>');
+                console.log(json)
+                var outputBody = $('#outputTxt');
+                outputBody.html(outputBody.html()+content);
+                var outputCard = $('#outputCard');
+                var scrollHeight = outputCard[0].scrollHeight;
+                outputCard.scrollTop(scrollHeight);
             });
             eventSource.addEventListener('error', function (e) {
-                console.log("EventSource异常：" + e.data)
+                console.log("EventSource异常：" + e)
             });
         }
      });
 
  })
+
 
 
 

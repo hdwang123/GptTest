@@ -68,12 +68,9 @@ public class ChatService {
                 .doOnError(throwable -> sseEmitter.completeWithError(throwable))
                 //发送消息到浏览器
                 .blockingForEach(x -> {
-                    String message = x.getChoices().get(0).getMessage().getContent();
                     System.out.println(x.getChoices().get(0));
-                    //消息不为空，再发送
-                    if (StrUtil.isNotEmpty(message)) {
-                        sseEmitter.send(message);
-                    }
+                    ChatMessage message = x.getChoices().get(0).getMessage();
+                    sseEmitter.send(message);
                 });
     }
 
