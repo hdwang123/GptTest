@@ -32,7 +32,7 @@ import static com.theokanning.openai.service.OpenAiService.*;
 @Service
 public class ChatService {
 
-    String token = "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";
+    String token = "sk-xxx";
     String proxyHost = "127.0.0.1";
     int proxyPort = 7890;
 
