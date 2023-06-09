@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>ChatGpt测试</title>
+    <link rel="stylesheet" href="lib/element-ui/index.css">
+
+    <style type="text/css">
+        #outputTxt{
+            height: 400px;
+        }
+
+
+
+
+
+    </style>
+
+    <script src="lib/jquery/jquery-3.6.0.min.js"></script>
+    <script src="lib/vue/vue.min.js"></script>
+    <script src="lib/element-ui/index.js"></script>
+</head>
+<body>
+<h1 align="center">ChatGpt测试</h1>
+
+<div id="chatWindow">
+    <el-row id="outputArea">
+        <el-card id="outputTxt">
+        </el-card>
+    </el-row>
+    <el-row id="inputArea">
+        <el-col :span="21">
+            <el-input id="sendTxt" v-model="input" placeholder="请输入内容"></el-input>
+        </el-col>
+        <el-col :span="3">
+            <el-button id="sendBtn" type="primary">发送消息</el-button>
+        </el-col>
+    </el-row>
+</div>
+
+</body>
+<script type="text/javascript">
+
+  //vue样式渲染到网页上
+    var app = new Vue({
+      el: '#chatWindow',
+      data: {
+          input: ''
+      },
+      mounted: function(){
+
+      },
+      methods: {
+      }
+    })
+
+ //点击事件
+ $('#sendBtn').click(function(){
+     $('.el-card__body').html('');
+     var inputText = $('#sendTxt').val();
+
+     //发送请求
+     $.ajax({
+        type: "post",
+        url:"/chat/sendMsg",
+        data:{
+            msg: inputText
+        },
+        contentType: 'application/x-www-form-urlencoded',
+        success:function(data){
+             var eventSource = new EventSource('http://localhost:8080/chat/conversation/'+data)
+             eventSource.addEventListener('open', function(e) {
+                console.log("EventSource连接成功");
+             });
+             eventSource.addEventListener("message", function(evt){
+                var data = evt.data;
+                $('.el-card__body').html($('.el-card__body').html()+data)
+            });
+            eventSource.addEventListener('error', function (e) {
+                console.log("EventSource异常：" + e.data)
+            });
+        }
+     });
+
+ })
+
+
+
+</script>
+</html>
