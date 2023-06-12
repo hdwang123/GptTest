@@ -1,0 +1,5 @@
+spring:
+  mvc:
+    async:
+      #设置API超时时间
+      request-timeout: 600000

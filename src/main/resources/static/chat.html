@@ -16,6 +16,16 @@
             overflow:auto;
         }
 
+        #outputBody{
+            line-height:30px;
+        }
+
+        .cursor-img{
+            height:24px;
+            vertical-align: text-bottom;
+        }
+
+
     </style>
 
     <script src="lib/jquery/jquery-3.6.0.min.js"></script>
@@ -32,16 +42,19 @@
             </div>
         </el-card>
         <el-card id="outputCard">
-            <div id="outputTxt">
+            <div id="outputBody">
+                <span id="outputTxt"></span>
+                <img v-if="blink" class="cursor-img" src="img/cursor-text-blink.gif" v-show="cursorImgVisible">
+                <img v-if="!blink" class="cursor-img" src="img/cursor-text-black.png" v-show="cursorImgVisible">
             </div>
         </el-card>
     </el-row>
     <el-row id="inputArea">
         <el-col :span="21">
-            <el-input id="sendTxt" v-model="input" placeholder="请输入内容"></el-input>
+            <el-input id="sendTxt" v-model="input" placeholder="请输入内容" @keyup.native="keyUp"></el-input>
         </el-col>
         <el-col :span="3">
-            <el-button id="sendBtn" type="primary">发送消息</el-button>
+            <el-button id="sendBtn" type="primary" :disabled="sendBtnDisabled" @click="sendMsg">发送消息</el-button>
         </el-col>
     </el-row>
 </div>
@@ -53,55 +66,100 @@
     var app = new Vue({
       el: '#chatWindow',
       data: {
-          input: ''
+          input: '',
+          sendBtnDisabled: false,
+          cursorImgVisible: false,
+          blink: true
       },
       mounted: function(){
 
       },
       methods: {
+         keyUp: function(event){
+            if(event.keyCode==13){
+               this.sendMsg();
+            }
+         },
+         sendMsg: function(){
+             var that = this;
+
+             //初始化一些状态
+             $('#outputTxt').html('');
+             var sendTxt = $('#sendTxt').val();
+             $('#inputTxt').html(sendTxt);
+             $('#sendTxt').val('');
+             that.sendBtnDisabled = true;
+             that.cursorImgVisible = true;
+
+             //发送请求
+             $.ajax({
+                type: "post",
+                url:"/chat/sendMsg",
+                data:{
+                    msg: sendTxt
+                },
+                contentType: 'application/x-www-form-urlencoded',
+                success:function(data){
+                     var eventSource = new EventSource('http://localhost:8080/chat/conversation/'+data)
+                     eventSource.addEventListener('open', function(e) {
+                        console.log("EventSource连接成功");
+                     });
+
+                     var blinkTimeout = null;
+                     eventSource.addEventListener("message", function(evt){
+                        var data = evt.data;
+                        var json = JSON.parse(data);
+                        var content = json.content ? json.content : '';
+                        content = content.replaceAll('\n','<br/>');
+                        console.log(json)
+                        var outputTxt = $('#outputTxt');
+                        outputTxt.html(outputTxt.html()+content);
+                        var outputCard = $('#outputCard');
+                        var scrollHeight = outputCard[0].scrollHeight;
+                        outputCard.scrollTop(scrollHeight);
+
+                        //光标不闪烁
+                        that.blink = false;
+                        window.clearTimeout(blinkTimeout);
+
+                        //光标200毫秒后开始闪烁
+                        blinkTimeout = window.setTimeout(function(){
+                            that.blink = true;
+                        }, 200)
+                    });
+                    eventSource.addEventListener('error', function (e) {
+                        console.log("EventSource连接异常");
+                        if (e.target.readyState === EventSource.CLOSED) {
+                          console.log('Disconnected');
+                        } else if (e.target.readyState === EventSource.CONNECTING) {
+                          console.log('Connecting...');
+                        }
+                    });
+
+                    //自定义 EventHandler，在收到 event 字段为 stop 的消息时触发, 在这里我们将SSE关闭
+                    eventSource.addEventListener('stop', e => {
+                        console.log('EventSource连接结束');
+
+                        //关闭连接（只有关闭后才不会一直重连）
+                        eventSource.close();
+
+                        //启用发送按钮
+                        that.sendBtnDisabled = false;
+
+                        //闪烁图标不可见
+                        that.cursorImgVisible = false;
+                    }, false);
+                },
+                error: function(){
+                     //启用发送按钮
+                     that.sendBtnDisabled = false;
+                     //闪烁图标不可见
+                     that.cursorImgVisible = false;
+                }
+             });
+         }
       }
     })
-
- //点击事件
- $('#sendBtn').click(function(){
-     $('#outputTxt').html('');
-     var sendTxt = $('#sendTxt').val();
-     $('#inputTxt').html(sendTxt);
-     $('#sendTxt').val('');
-
-     //发送请求
-     $.ajax({
-        type: "post",
-        url:"/chat/sendMsg",
-        data:{
-            msg: sendTxt
-        },
-        contentType: 'application/x-www-form-urlencoded',
-        success:function(data){
-             var eventSource = new EventSource('http://localhost:8080/chat/conversation/'+data)
-             eventSource.addEventListener('open', function(e) {
-                console.log("EventSource连接成功");
-             });
-             eventSource.addEventListener("message", function(evt){
-                var data = evt.data;
-                var json = JSON.parse(data);
-                var content = json.content ? json.content : '';
-                content = content.replaceAll('\n','<br/>');
-                console.log(json)
-                var outputBody = $('#outputTxt');
-                outputBody.html(outputBody.html()+content);
-                var outputCard = $('#outputCard');
-                var scrollHeight = outputCard[0].scrollHeight;
-                outputCard.scrollTop(scrollHeight);
-            });
-            eventSource.addEventListener('error', function (e) {
-                console.log("EventSource异常：" + e)
-            });
-        }
-     });
-
- })
-
 
 
 
