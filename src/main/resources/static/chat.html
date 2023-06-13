@@ -100,7 +100,7 @@
                 },
                 contentType: 'application/x-www-form-urlencoded',
                 success:function(data){
-                     var eventSource = new EventSource('http://localhost:8080/chat/conversation/'+data)
+                     var eventSource = new EventSource('/chat/conversation/'+data)
                      eventSource.addEventListener('open', function(e) {
                         console.log("EventSource连接成功");
                      });
