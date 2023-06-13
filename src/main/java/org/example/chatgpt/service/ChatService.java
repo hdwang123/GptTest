@@ -51,7 +51,7 @@ public class ChatService {
      */
     @Async
     public void streamChatCompletion(String prompt, SseEmitter sseEmitter) {
-        LOG.info("Creating chat completion...");
+        LOG.info("发送消息：" + prompt);
         final List<ChatMessage> messages = new ArrayList<>();
         final ChatMessage systemMessage = new ChatMessage(ChatMessageRole.SYSTEM.value(), prompt);
         messages.add(systemMessage);
@@ -66,6 +66,7 @@ public class ChatService {
 
 
         //流式对话（逐Token返回）
+        StringBuilder receiveMsgBuilder = new StringBuilder();
         OpenAiService service = buildOpenAiService(token, proxyHost, proxyPort);
         service.streamChatCompletion(chatCompletionRequest)
                 //正常结束
@@ -96,7 +97,11 @@ public class ChatService {
                         //未结束时才可以发送消息（结束后，先调用doOnComplete然后还会收到一条结束消息，因连接关闭导致发送消息失败:ResponseBodyEmitter has already completed）
                         sseEmitter.send(choice.getMessage());
                     }
+                    String content = choice.getMessage().getContent();
+                    content = content == null ? StrUtil.EMPTY : content;
+                    receiveMsgBuilder.append(content);
                 });
+        LOG.info("收到的完整消息：" + receiveMsgBuilder);
     }
 
     /**
