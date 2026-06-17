@@ -4,6 +4,7 @@
 
 ## 页面效果
 ![页面效果](docs/page.png)
+![页面效果](docs/page2.png)
 
 ## 会话流转逻辑
 
