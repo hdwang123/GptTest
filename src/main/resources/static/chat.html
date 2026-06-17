@@ -1,36 +1,234 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <title>ChatGpt测试</title>
+    <title>ChatGPT 测试</title>
     <link rel="stylesheet" href="lib/element-ui/index.css">
 
     <style type="text/css">
-        body{
-            background-color:white;
+        html, body {
+            height: 100%;
+            margin: 0;
+            background: #f5f7fb;
+            color: #202124;
+            font-family: Arial, "Microsoft YaHei", sans-serif;
         }
 
-        #outputCard{
-            height: 300px;
-            overflow:auto;
+        #chatWindow {
+            min-height: 100%;
         }
 
-        #inputCard{
-            height: 100px;
-            overflow:auto;
+        .layout {
+            min-height: 100vh;
+            display: flex;
         }
 
-        #outputBody{
-            line-height:30px;
+        .sidebar {
+            position: fixed;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 260px;
+            background: #ffffff;
+            border-right: 1px solid #e5e7eb;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
         }
 
-        .cursor-img{
-            height:24px;
+        .sidebar-header {
+            height: 56px;
+            padding: 10px 12px;
+            border-bottom: 1px solid #e5e7eb;
+            box-sizing: border-box;
+        }
+
+        .new-session-btn {
+            width: 100%;
+        }
+
+        .session-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 8px;
+            box-sizing: border-box;
+        }
+
+        .session-item {
+            height: 42px;
+            padding: 0 10px;
+            margin-bottom: 4px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+            color: #374151;
+            box-sizing: border-box;
+        }
+
+        .session-item:hover {
+            background: #f3f4f6;
+        }
+
+        .session-item.active {
+            background: #e8f0ff;
+            color: #1d4ed8;
+            font-weight: 600;
+        }
+
+        .session-title {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            font-size: 14px;
+        }
+
+        .main {
+            width: 100%;
+            margin-left: 260px;
+            min-height: 100vh;
+            padding-bottom: 92px;
+            box-sizing: border-box;
+        }
+
+        .chat-header {
+            position: sticky;
+            top: 0;
+            z-index: 2;
+            height: 56px;
+            padding: 0 24px;
+            display: flex;
+            align-items: center;
+            background: #ffffff;
+            border-bottom: 1px solid #e5e7eb;
+            box-sizing: border-box;
+        }
+
+        .chat-title {
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .message-list {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 24px 16px 12px;
+            box-sizing: border-box;
+        }
+
+        .message-row {
+            display: flex;
+            margin-bottom: 16px;
+        }
+
+        .message-row.user {
+            justify-content: flex-end;
+        }
+
+        .message-row.assistant {
+            justify-content: flex-start;
+        }
+
+        .message-bubble {
+            max-width: 72%;
+            padding: 12px 14px;
+            border-radius: 8px;
+            line-height: 1.7;
+            white-space: pre-wrap;
+            word-break: break-word;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+        }
+
+        .message-row.user .message-bubble {
+            background: #2563eb;
+            color: #ffffff;
+        }
+
+        .message-row.assistant .message-bubble {
+            background: #ffffff;
+            color: #202124;
+        }
+
+        .empty-state {
+            margin-top: 22vh;
+            text-align: center;
+            color: #6b7280;
+            font-size: 16px;
+        }
+
+        .cursor-img {
+            height: 20px;
             vertical-align: text-bottom;
         }
 
+        .input-bar {
+            position: fixed;
+            left: 260px;
+            right: 0;
+            bottom: 0;
+            z-index: 3;
+            padding: 14px 16px;
+            background: #ffffff;
+            border-top: 1px solid #e5e7eb;
+            box-sizing: border-box;
+        }
 
+        .input-inner {
+            max-width: 900px;
+            margin: 0 auto;
+            display: flex;
+            gap: 10px;
+            align-items: flex-end;
+        }
 
+        .input-inner .el-textarea {
+            flex: 1;
+        }
+
+        .send-button {
+            width: 96px;
+            height: 40px;
+        }
+
+        @media (max-width: 760px) {
+            .layout {
+                display: block;
+            }
+
+            .sidebar {
+                position: static;
+                width: 100%;
+                height: 118px;
+                border-right: 0;
+                border-bottom: 1px solid #e5e7eb;
+            }
+
+            .session-list {
+                display: flex;
+                overflow-x: auto;
+                overflow-y: hidden;
+            }
+
+            .session-item {
+                min-width: 150px;
+            }
+
+            .main {
+                margin-left: 0;
+            }
+
+            .input-bar {
+                left: 0;
+            }
+
+            .message-bubble {
+                max-width: 86%;
+            }
+
+            .send-button {
+                width: 76px;
+            }
+        }
     </style>
 
     <script src="lib/jquery/jquery-3.6.0.min.js"></script>
@@ -38,136 +236,275 @@
     <script src="lib/element-ui/index.js"></script>
 </head>
 <body>
-<h1 align="center">ChatGpt测试</h1>
-
 <div id="chatWindow">
-    <el-row id="outputArea">
-        <el-card id="inputCard">
-            <div id="inputTxt">
+    <div class="layout">
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <el-button class="new-session-btn" size="small" type="primary" :disabled="sendBtnDisabled" @click="newSession">
+                    新建会话
+                </el-button>
             </div>
-        </el-card>
-        <el-card id="outputCard">
-            <div id="outputBody">
-                <span id="outputTxt"></span>
-                <img v-if="blink" class="cursor-img" src="img/cursor-text-blink.gif" v-show="cursorImgVisible">
-                <img v-if="!blink" class="cursor-img" src="img/cursor-text-black.png" v-show="cursorImgVisible">
+            <div class="session-list">
+                <div v-for="session in sessions"
+                     :key="session.id"
+                     class="session-item"
+                     :class="{ active: session.id === sessionId }"
+                     @click="selectSession(session.id)">
+                    <div class="session-title">{{ session.title }}</div>
+                </div>
             </div>
-        </el-card>
-    </el-row>
-    <el-row id="inputArea">
-        <el-col :span="21">
-            <el-input id="sendTxt" v-model="input" placeholder="请输入内容" @keyup.native="keyUp"></el-input>
-        </el-col>
-        <el-col :span="3">
-            <el-button id="sendBtn" type="primary" :disabled="sendBtnDisabled" @click="sendMsg">发送消息</el-button>
-        </el-col>
-    </el-row>
-</div>
+        </aside>
 
+        <main class="main">
+            <div class="chat-header">
+                <div class="chat-title">{{ currentTitle }}</div>
+            </div>
+
+            <div id="messageList" class="message-list">
+                <div v-if="messages.length === 0" class="empty-state">开始新的对话</div>
+                <div v-for="(message, index) in messages" :key="index" class="message-row" :class="message.role">
+                    <div class="message-bubble">
+                        <span>{{ message.content }}</span>
+                        <img v-if="message.streaming && blink" class="cursor-img" src="img/cursor-text-blink.gif">
+                        <img v-if="message.streaming && !blink" class="cursor-img" src="img/cursor-text-black.png">
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <div class="input-bar">
+        <div class="input-inner">
+            <el-input
+                    v-model="input"
+                    type="textarea"
+                    :autosize="{ minRows: 1, maxRows: 4 }"
+                    resize="none"
+                    placeholder="请输入内容"
+                    @keydown.native="keyDown">
+            </el-input>
+            <el-button class="send-button" type="primary" :disabled="sendBtnDisabled" @click="sendMsg">发送</el-button>
+        </div>
+    </div>
+</div>
 </body>
 <script type="text/javascript">
+    var STORAGE_KEY = 'gpt_test_chat_sessions_v1';
 
-  //vue样式渲染到网页上
     var app = new Vue({
-      el: '#chatWindow',
-      data: {
-          input: '',
-          sendBtnDisabled: false,
-          cursorImgVisible: false,
-          blink: true
-      },
-      mounted: function(){
-
-      },
-      methods: {
-         keyUp: function(event){
-            if(event.keyCode==13){
-               this.sendMsg();
+        el: '#chatWindow',
+        data: {
+            sessionId: '',
+            input: '',
+            messages: [],
+            sessions: [],
+            sendBtnDisabled: false,
+            blink: true
+        },
+        computed: {
+            currentTitle: function () {
+                var session = this.findSession(this.sessionId);
+                return session ? session.title : 'ChatGPT 测试';
             }
-         },
-         sendMsg: function(){
-             var that = this;
-
-             //初始化一些状态
-             $('#outputTxt').html('');
-             var sendTxt = $('#sendTxt').val();
-             $('#inputTxt').html(sendTxt);
-             $('#sendTxt').val('');
-             that.sendBtnDisabled = true;
-             that.cursorImgVisible = true;
-
-             //发送请求
-             $.ajax({
-                type: "post",
-                url:"/chat/sendMsg",
-                data:{
-                    msg: sendTxt
-                },
-                contentType: 'application/x-www-form-urlencoded',
-                success:function(data){
-                     var eventSource = new EventSource('/chat/conversation/'+data)
-                     eventSource.addEventListener('open', function(e) {
-                        console.log("EventSource连接成功");
-                     });
-
-                     var blinkTimeout = null;
-                     eventSource.addEventListener("message", function(evt){
-                        var data = evt.data;
-                        var json = JSON.parse(data);
-                        var content = json.content ? json.content : '';
-                        content = content.replaceAll('\n','<br/>');
-                        console.log(json)
-                        var outputTxt = $('#outputTxt');
-                        outputTxt.html(outputTxt.html()+content);
-                        var outputCard = $('#outputCard');
-                        var scrollHeight = outputCard[0].scrollHeight;
-                        outputCard.scrollTop(scrollHeight);
-
-                        //光标不闪烁
-                        that.blink = false;
-                        window.clearTimeout(blinkTimeout);
-
-                        //光标200毫秒后开始闪烁
-                        blinkTimeout = window.setTimeout(function(){
-                            that.blink = true;
-                        }, 200)
-                    });
-                    eventSource.addEventListener('error', function (e) {
-                        console.log("EventSource连接异常");
-                        if (e.target.readyState === EventSource.CLOSED) {
-                          console.log('Disconnected');
-                        } else if (e.target.readyState === EventSource.CONNECTING) {
-                          console.log('Connecting...');
-                        }
-                    });
-
-                    //自定义 EventHandler，在收到 event 字段为 stop 的消息时触发, 在这里我们将SSE关闭
-                    eventSource.addEventListener('stop', e => {
-                        console.log('EventSource连接结束');
-
-                        //关闭连接（只有关闭后才不会一直重连）
-                        eventSource.close();
-
-                        //启用发送按钮
-                        that.sendBtnDisabled = false;
-
-                        //闪烁图标不可见
-                        that.cursorImgVisible = false;
-                    }, false);
-                },
-                error: function(){
-                     //启用发送按钮
-                     that.sendBtnDisabled = false;
-                     //闪烁图标不可见
-                     that.cursorImgVisible = false;
+        },
+        mounted: function () {
+            this.loadSessions();
+            if (this.sessions.length > 0) {
+                this.selectSession(this.sessions[0].id);
+            } else {
+                this.newSession();
+            }
+        },
+        methods: {
+            keyDown: function (event) {
+                if (event.keyCode === 13 && !event.shiftKey) {
+                    event.preventDefault();
+                    this.sendMsg();
                 }
-             });
-         }
-      }
-    })
+            },
+            newSession: function () {
+                var that = this;
+                if (that.sendBtnDisabled) {
+                    return;
+                }
 
+                $.ajax({
+                    type: 'post',
+                    url: '/chat/newSession',
+                    contentType: 'application/x-www-form-urlencoded',
+                    success: function (data) {
+                        var session = {
+                            id: data,
+                            title: '新会话',
+                            messages: [],
+                            updatedAt: Date.now()
+                        };
+                        that.sessions.unshift(session);
+                        that.selectSession(session.id);
+                        that.saveSessions();
+                    }
+                });
+            },
+            selectSession: function (sessionId) {
+                if (this.sendBtnDisabled || this.sessionId === sessionId) {
+                    return;
+                }
 
+                var session = this.findSession(sessionId);
+                if (!session) {
+                    return;
+                }
 
+                this.sessionId = session.id;
+                this.messages = this.copyMessages(session.messages || []);
+                this.input = '';
+                this.scrollToBottom();
+            },
+            sendMsg: function () {
+                var that = this;
+                var sendTxt = $.trim(that.input);
+                if (!sendTxt || that.sendBtnDisabled) {
+                    return;
+                }
 
+                that.input = '';
+                that.sendBtnDisabled = true;
+                that.messages.push({
+                    role: 'user',
+                    content: sendTxt
+                });
+                var assistantIndex = that.messages.push({
+                    role: 'assistant',
+                    content: '',
+                    streaming: true
+                }) - 1;
+                that.updateCurrentSessionTitle(sendTxt);
+                that.saveCurrentSession();
+                that.scrollToBottom();
+
+                $.ajax({
+                    type: 'post',
+                    url: '/chat/sendMsg',
+                    data: {
+                        sessionId: that.sessionId,
+                        msg: sendTxt
+                    },
+                    contentType: 'application/x-www-form-urlencoded',
+                    success: function (data) {
+                        that.openEventSource(data, assistantIndex);
+                    },
+                    error: function () {
+                        that.messages[assistantIndex].content = '发送失败，请稍后重试。';
+                        that.messages[assistantIndex].streaming = false;
+                        that.sendBtnDisabled = false;
+                        that.saveCurrentSession();
+                    }
+                });
+            },
+            openEventSource: function (msgId, assistantIndex) {
+                var that = this;
+                var eventSource = new EventSource('/chat/conversation/' + msgId);
+                var blinkTimeout = null;
+
+                eventSource.addEventListener('message', function (evt) {
+                    var json = JSON.parse(evt.data);
+                    var content = json.content ? json.content : '';
+                    that.messages[assistantIndex].content += content;
+                    that.saveCurrentSession();
+                    that.scrollToBottom();
+
+                    that.blink = false;
+                    window.clearTimeout(blinkTimeout);
+                    blinkTimeout = window.setTimeout(function () {
+                        that.blink = true;
+                    }, 200);
+                });
+
+                eventSource.addEventListener('error', function () {
+                    if (!that.messages[assistantIndex].content) {
+                        that.messages[assistantIndex].content = '连接异常，请稍后重试。';
+                    }
+                    that.messages[assistantIndex].streaming = false;
+                    that.sendBtnDisabled = false;
+                    that.saveCurrentSession();
+                    eventSource.close();
+                });
+
+                eventSource.addEventListener('stop', function () {
+                    that.messages[assistantIndex].streaming = false;
+                    that.sendBtnDisabled = false;
+                    that.saveCurrentSession();
+                    eventSource.close();
+                    that.scrollToBottom();
+                }, false);
+            },
+            findSession: function (sessionId) {
+                for (var i = 0; i < this.sessions.length; i++) {
+                    if (this.sessions[i].id === sessionId) {
+                        return this.sessions[i];
+                    }
+                }
+                return null;
+            },
+            updateCurrentSessionTitle: function (text) {
+                var session = this.findSession(this.sessionId);
+                if (!session || session.title !== '新会话') {
+                    return;
+                }
+                session.title = text.length > 18 ? text.substring(0, 18) + '...' : text;
+            },
+            saveCurrentSession: function () {
+                var session = this.findSession(this.sessionId);
+                if (!session) {
+                    return;
+                }
+                session.messages = this.copyMessages(this.messages);
+                session.updatedAt = Date.now();
+                this.sessions.sort(function (a, b) {
+                    return b.updatedAt - a.updatedAt;
+                });
+                this.saveSessions();
+            },
+            loadSessions: function () {
+                try {
+                    var raw = window.localStorage.getItem(STORAGE_KEY);
+                    this.sessions = raw ? JSON.parse(raw) : [];
+                } catch (e) {
+                    this.sessions = [];
+                }
+            },
+            saveSessions: function () {
+                var sessions = this.sessions.map(function (session) {
+                    return {
+                        id: session.id,
+                        title: session.title,
+                        updatedAt: session.updatedAt,
+                        messages: (session.messages || []).map(function (message) {
+                            return {
+                                role: message.role,
+                                content: message.content,
+                                streaming: false
+                            };
+                        })
+                    };
+                });
+                window.localStorage.setItem(STORAGE_KEY, JSON.stringify(sessions));
+            },
+            copyMessages: function (messages) {
+                return (messages || []).map(function (message) {
+                    return {
+                        role: message.role,
+                        content: message.content,
+                        streaming: false
+                    };
+                });
+            },
+            scrollToBottom: function () {
+                this.$nextTick(function () {
+                    window.scrollTo(0, document.body.scrollHeight);
+                });
+            }
+        }
+    });
 </script>
 </html>

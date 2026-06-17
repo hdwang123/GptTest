@@ -6,6 +6,8 @@ import com.openai.client.okhttp.OpenAIOkHttpClient;
 import com.openai.core.http.StreamResponse;
 import com.openai.models.responses.ResponseCreateParams;
 import com.openai.models.responses.ResponseStreamEvent;
+import org.example.chatgpt.model.ChatTurn;
+import org.example.chatgpt.model.OpenAiStreamException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -17,7 +19,11 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.Proxy;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Conversation service based on the official OpenAI Java SDK.
@@ -26,8 +32,11 @@ import java.util.Collections;
 public class ChatServiceNew {
 
     private static final Logger LOG = LoggerFactory.getLogger(ChatServiceNew.class);
+    private static final int MAX_HISTORY_TURNS = 10;
 
-    @Value("${openai.api-url}")
+    private final Map<String, List<ChatTurn>> sessionHistoryMap = new ConcurrentHashMap<>();
+
+    @Value("${openai.api-url:}")
     private String apiUrl;
 
     @Value("${openai.api-key}")
@@ -36,7 +45,7 @@ public class ChatServiceNew {
     @Value("${openai.model:gpt-4.1-mini}")
     private String model;
 
-    @Value("${openai.max-token: 2000}")
+    @Value("${openai.max-token:2000}")
     private long maxToken;
 
     @Value("${openai.proxy.host:127.0.0.1}")
@@ -45,38 +54,39 @@ public class ChatServiceNew {
     @Value("${openai.proxy.port:7890}")
     private int proxyPort;
 
-    /**
-     * Stream a model response to the browser through SSE.
-     *
-     * @param prompt     user input
-     * @param sseEmitter SSE connection
-     */
     @Async
     public void streamChatCompletion(String prompt, SseEmitter sseEmitter) {
-        LOG.info("发送消息：{}", prompt);
+        streamChatCompletion(null, prompt, sseEmitter);
+    }
+
+    @Async
+    public void streamChatCompletion(String sessionId, String prompt, SseEmitter sseEmitter) {
+        LOG.info("Send message, sessionId={}, prompt={}", sessionId, prompt);
 
         OpenAIClient client = null;
         StringBuilder receiveMsgBuilder = new StringBuilder();
 
         try {
             client = buildOpenAiClient();
+            String input = buildInput(sessionId, prompt);
 
             ResponseCreateParams params = ResponseCreateParams.builder()
                     .model(model)
                     .maxOutputTokens(maxToken)
-                    .input(prompt)
+                    .input(input)
                     .build();
 
             try (StreamResponse<ResponseStreamEvent> streamResponse = client.responses().createStreaming(params)) {
-                streamResponse.stream().forEach(event -> handleStreamEvent(event, sseEmitter, receiveMsgBuilder));
+                streamResponse.stream()
+                        .forEach(event -> handleStreamEvent(event, sseEmitter, receiveMsgBuilder));
             }
 
-            LOG.info("连接结束");
+            saveHistory(sessionId, prompt, receiveMsgBuilder.toString());
             sendStopEvent(sseEmitter);
             sseEmitter.complete();
-            LOG.info("收到的完整消息：{}", receiveMsgBuilder);
+            LOG.info("Stream completed, full message={}", receiveMsgBuilder);
         } catch (Exception e) {
-            LOG.error("连接异常", e);
+            LOG.error("Stream failed", e);
             sendStopEventQuietly(sseEmitter);
             sseEmitter.completeWithError(e);
         } finally {
@@ -86,7 +96,14 @@ public class ChatServiceNew {
         }
     }
 
-    private void handleStreamEvent(ResponseStreamEvent event, SseEmitter sseEmitter, StringBuilder receiveMsgBuilder) {
+    public void clearSession(String sessionId) {
+        if (StrUtil.isNotBlank(sessionId)) {
+            sessionHistoryMap.remove(sessionId);
+        }
+    }
+
+    private void handleStreamEvent(ResponseStreamEvent event, SseEmitter sseEmitter,
+                                   StringBuilder receiveMsgBuilder) {
         if (event.isOutputTextDelta()) {
             String content = event.asOutputTextDelta().delta();
             content = content == null ? StrUtil.EMPTY : content;
@@ -104,7 +121,7 @@ public class ChatServiceNew {
         try {
             sseEmitter.send(Collections.singletonMap("content", content));
         } catch (IOException e) {
-            throw new OpenAiStreamException("发送 SSE 消息失败", e);
+            throw new OpenAiStreamException("Send SSE message failed", e);
         }
     }
 
@@ -122,7 +139,7 @@ public class ChatServiceNew {
 
     private OpenAIClient buildOpenAiClient() {
         OpenAIOkHttpClient.Builder builder = OpenAIOkHttpClient.builder()
-                .fromEnv() //读环境变量
+                .fromEnv()
                 .timeout(Duration.ofSeconds(60));
 
         if (StrUtil.isNotBlank(apiUrl)) {
@@ -140,13 +157,41 @@ public class ChatServiceNew {
         return builder.build();
     }
 
-    private static class OpenAiStreamException extends RuntimeException {
-        private OpenAiStreamException(String message) {
-            super(message);
+    private String buildInput(String sessionId, String prompt) {
+        if (StrUtil.isBlank(sessionId)) {
+            return prompt;
         }
 
-        private OpenAiStreamException(String message, Throwable cause) {
-            super(message, cause);
+        List<ChatTurn> history = sessionHistoryMap.get(sessionId);
+        if (history == null || history.isEmpty()) {
+            return prompt;
+        }
+
+        StringBuilder builder = new StringBuilder();
+        builder.append("Conversation history. Answer the last user message using the context below.\n\n");
+        synchronized (history) {
+            for (ChatTurn turn : history) {
+                builder.append("User: ").append(turn.getUserMsg()).append('\n');
+                builder.append("Assistant: ").append(turn.getAssistantMsg()).append("\n\n");
+            }
+        }
+        builder.append("User: ").append(prompt).append('\n');
+        builder.append("Assistant: ");
+        return builder.toString();
+    }
+
+    private void saveHistory(String sessionId, String userMsg, String assistantMsg) {
+        if (StrUtil.isBlank(sessionId)) {
+            return;
+        }
+
+        List<ChatTurn> history = sessionHistoryMap.computeIfAbsent(
+                sessionId, key -> Collections.synchronizedList(new ArrayList<>()));
+        synchronized (history) {
+            history.add(new ChatTurn(userMsg, assistantMsg));
+            while (history.size() > MAX_HISTORY_TURNS) {
+                history.remove(0);
+            }
         }
     }
 }
