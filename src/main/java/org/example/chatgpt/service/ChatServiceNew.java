@@ -49,7 +49,7 @@ public class ChatServiceNew {
     /**
      * OpenAI 兼容接口地址。
      */
-    @Value("${openai.api-url:}")
+    @Value("${openai.api-url}")
     private String apiUrl;
 
     /**
@@ -61,25 +61,25 @@ public class ChatServiceNew {
     /**
      * 调用模型名称。
      */
-    @Value("${openai.model:gpt-4.1-mini}")
+    @Value("${openai.model}")
     private String model;
 
     /**
      * 单次回复最大输出 token 数。
      */
-    @Value("${openai.max-token:2000}")
+    @Value("${openai.max-token}")
     private long maxToken;
 
     /**
      * HTTP 代理主机。
      */
-    @Value("${openai.proxy.host:127.0.0.1}")
+    @Value("${openai.proxy.host}")
     private String proxyHost;
 
     /**
      * HTTP 代理端口。
      */
-    @Value("${openai.proxy.port:7890}")
+    @Value("${openai.proxy.port}")
     private int proxyPort;
 
     /**

@@ -9,6 +9,13 @@ openai:
   api-key: sk-your-api-key
   model: gpt-4.1-mini
   max-token: 2000
+  image-api-url: https://openrouter.ai/api/v1
+  image-api-key: sk-your-image-api-key
+  image-model: google/gemini-2.5-flash-image
+  image-size: 1K
+  image-max-token: 1024
+  image-storage-dir: src/main/resources/static/generated-images
+  image-public-url-prefix: /chat/image
   proxy:
     host: 127.0.0.1
     port: 7890

@@ -161,6 +161,13 @@
             vertical-align: text-bottom;
         }
 
+        .message-image {
+            display: block;
+            max-width: 100%;
+            margin-top: 10px;
+            border-radius: 8px;
+        }
+
         .input-bar {
             position: fixed;
             left: 260px;
@@ -265,6 +272,7 @@
                 <div v-for="(message, index) in messages" :key="index" class="message-row" :class="message.role">
                     <div class="message-bubble">
                         <span>{{ message.content }}</span>
+                        <img v-if="message.imageUrl" class="message-image" :src="message.imageUrl" alt="generated image">
                         <img v-if="message.streaming && blink" class="cursor-img" src="img/cursor-text-blink.gif">
                         <img v-if="message.streaming && !blink" class="cursor-img" src="img/cursor-text-black.png">
                     </div>
@@ -446,6 +454,9 @@
                     var json = JSON.parse(evt.data);
                     var content = json.content ? json.content : '';
                     that.messages[assistantIndex].content += content;
+                    if (json.imageUrl) {
+                        that.messages[assistantIndex].imageUrl = json.imageUrl;
+                    }
                     that.saveCurrentSession();
                     that.scrollToBottom();
 
@@ -544,6 +555,7 @@
                             return {
                                 role: message.role,
                                 content: message.content,
+                                imageUrl: message.imageUrl || '',
                                 streaming: false
                             };
                         })
@@ -563,6 +575,7 @@
                     return {
                         role: message.role,
                         content: message.content,
+                        imageUrl: message.imageUrl || '',
                         streaming: false
                     };
                 });
