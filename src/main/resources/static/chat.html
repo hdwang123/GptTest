@@ -289,7 +289,7 @@
 </div>
 </body>
 <script type="text/javascript">
-    // 浏览器本地保存会话列表的 key。
+    // 当前标签页会话保存会话列表的 key；刷新保留，关闭标签页后由浏览器自动清空。
     var STORAGE_KEY = 'gpt_test_chat_sessions_v1';
 
     // 创建聊天页面的 Vue 实例。
@@ -315,7 +315,7 @@
             }
         },
         /**
-         * 页面挂载后加载本地会话；没有历史会话时自动创建一个新会话。
+         * 页面挂载后加载当前标签页的历史会话；没有历史会话时自动创建一个新会话。
          */
         mounted: function () {
             this.loadSessions();
@@ -520,11 +520,11 @@
             },
 
             /**
-             * 从浏览器本地存储加载历史会话。
+             * 从当前标签页会话存储加载历史会话。
              */
             loadSessions: function () {
                 try {
-                    var raw = window.localStorage.getItem(STORAGE_KEY);
+                    var raw = window.sessionStorage.getItem(STORAGE_KEY);
                     this.sessions = raw ? JSON.parse(raw) : [];
                 } catch (e) {
                     this.sessions = [];
@@ -532,7 +532,7 @@
             },
 
             /**
-             * 把会话列表保存到浏览器本地存储。
+             * 把会话列表保存到当前标签页会话存储。
              */
             saveSessions: function () {
                 var sessions = this.sessions.map(function (session) {
@@ -549,7 +549,7 @@
                         })
                     };
                 });
-                window.localStorage.setItem(STORAGE_KEY, JSON.stringify(sessions));
+                window.sessionStorage.setItem(STORAGE_KEY, JSON.stringify(sessions));
             },
 
             /**
