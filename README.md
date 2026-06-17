@@ -4,7 +4,7 @@
 
 ## 会话流转逻辑
 
-![会话流转逻辑图](docs/session-flow.svg)
+![会话流转逻辑图](docs/session-flow.png)
 
 ## 一句话看懂
 
