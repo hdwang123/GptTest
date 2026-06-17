@@ -289,8 +289,10 @@
 </div>
 </body>
 <script type="text/javascript">
+    // 浏览器本地保存会话列表的 key。
     var STORAGE_KEY = 'gpt_test_chat_sessions_v1';
 
+    // 创建聊天页面的 Vue 实例。
     var app = new Vue({
         el: '#chatWindow',
         data: {
@@ -302,11 +304,19 @@
             blink: true
         },
         computed: {
+            /**
+             * 计算当前会话标题。
+             *
+             * @returns {string} 当前会话标题
+             */
             currentTitle: function () {
                 var session = this.findSession(this.sessionId);
                 return session ? session.title : 'ChatGPT 测试';
             }
         },
+        /**
+         * 页面挂载后加载本地会话；没有历史会话时自动创建一个新会话。
+         */
         mounted: function () {
             this.loadSessions();
             if (this.sessions.length > 0) {
@@ -316,12 +326,21 @@
             }
         },
         methods: {
+            /**
+             * 处理输入框键盘事件，Enter 发送，Shift+Enter 换行。
+             *
+             * @param {KeyboardEvent} event 键盘事件
+             */
             keyDown: function (event) {
                 if (event.keyCode === 13 && !event.shiftKey) {
                     event.preventDefault();
                     this.sendMsg();
                 }
             },
+
+            /**
+             * 创建新会话，并把新会话放到左侧列表顶部。
+             */
             newSession: function () {
                 var that = this;
                 if (that.sendBtnDisabled) {
@@ -345,6 +364,12 @@
                     }
                 });
             },
+
+            /**
+             * 切换到指定会话，并恢复该会话的历史消息。
+             *
+             * @param {string} sessionId 会话 ID
+             */
             selectSession: function (sessionId) {
                 if (this.sendBtnDisabled || this.sessionId === sessionId) {
                     return;
@@ -360,6 +385,10 @@
                 this.input = '';
                 this.scrollToBottom();
             },
+
+            /**
+             * 发送用户消息，并创建对应的助手消息占位。
+             */
             sendMsg: function () {
                 var that = this;
                 var sendTxt = $.trim(that.input);
@@ -401,6 +430,13 @@
                     }
                 });
             },
+
+            /**
+             * 打开 SSE 连接，持续接收后端推送的模型回复。
+             *
+             * @param {string} msgId 消息 ID
+             * @param {number} assistantIndex 助手消息在消息数组中的下标
+             */
             openEventSource: function (msgId, assistantIndex) {
                 var that = this;
                 var eventSource = new EventSource('/chat/conversation/' + msgId);
@@ -438,6 +474,13 @@
                     that.scrollToBottom();
                 }, false);
             },
+
+            /**
+             * 根据会话 ID 查找会话对象。
+             *
+             * @param {string} sessionId 会话 ID
+             * @returns {Object|null} 会话对象
+             */
             findSession: function (sessionId) {
                 for (var i = 0; i < this.sessions.length; i++) {
                     if (this.sessions[i].id === sessionId) {
@@ -446,6 +489,12 @@
                 }
                 return null;
             },
+
+            /**
+             * 使用第一条用户消息生成当前会话标题。
+             *
+             * @param {string} text 用户消息内容
+             */
             updateCurrentSessionTitle: function (text) {
                 var session = this.findSession(this.sessionId);
                 if (!session || session.title !== '新会话') {
@@ -453,6 +502,10 @@
                 }
                 session.title = text.length > 18 ? text.substring(0, 18) + '...' : text;
             },
+
+            /**
+             * 保存当前会话消息，并按更新时间重新排序会话列表。
+             */
             saveCurrentSession: function () {
                 var session = this.findSession(this.sessionId);
                 if (!session) {
@@ -465,6 +518,10 @@
                 });
                 this.saveSessions();
             },
+
+            /**
+             * 从浏览器本地存储加载历史会话。
+             */
             loadSessions: function () {
                 try {
                     var raw = window.localStorage.getItem(STORAGE_KEY);
@@ -473,6 +530,10 @@
                     this.sessions = [];
                 }
             },
+
+            /**
+             * 把会话列表保存到浏览器本地存储。
+             */
             saveSessions: function () {
                 var sessions = this.sessions.map(function (session) {
                     return {
@@ -490,6 +551,13 @@
                 });
                 window.localStorage.setItem(STORAGE_KEY, JSON.stringify(sessions));
             },
+
+            /**
+             * 复制消息列表，并清理临时的流式状态。
+             *
+             * @param {Array} messages 原消息列表
+             * @returns {Array} 复制后的消息列表
+             */
             copyMessages: function (messages) {
                 return (messages || []).map(function (message) {
                     return {
@@ -499,6 +567,10 @@
                     };
                 });
             },
+
+            /**
+             * 滚动到页面底部，让最新消息可见。
+             */
             scrollToBottom: function () {
                 this.$nextTick(function () {
                     window.scrollTo(0, document.body.scrollHeight);
