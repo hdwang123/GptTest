@@ -18,16 +18,3 @@
 - 为什么先 POST 再 GET：`EventSource` 只能发 GET，所以先 `POST /sendMsg` 暂存消息，再 `GET /conversation/{msgId}` 建立 SSE。
 
 
-## 配置
-
-```yaml
-openai:
-  api-url: https://openrouter.ai/api/v1
-  api-key: sk-your-api-key
-  model: gpt-4.1-mini
-  max-token: 2000
-  proxy:
-    host: 127.0.0.1
-    port: 7890
-```
-
