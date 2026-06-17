@@ -2,6 +2,7 @@ package org.example.chatgpt.controller;
 
 import cn.hutool.core.util.IdUtil;
 import org.example.chatgpt.service.ChatService;
+import org.example.chatgpt.service.ChatServiceNew;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Controller;
@@ -27,7 +28,7 @@ public class ChatController {
     Map<String, String> msgMap = new ConcurrentHashMap<>();
 
     @Autowired
-    ChatService chatService;
+    ChatServiceNew chatService;
 
     /**
      * 发送消息

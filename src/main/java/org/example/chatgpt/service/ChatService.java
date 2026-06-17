@@ -34,11 +34,12 @@ import static com.theokanning.openai.service.OpenAiService.*;
  * 时间： 2023/6/9 11:58
  */
 @Service
+@Deprecated
 public class ChatService {
 
     private static final Logger LOG = LoggerFactory.getLogger(ChatService.class);
 
-    String token = "sk-xxx";
+    String token = "sk-XXX";
     String proxyHost = "127.0.0.1";
     int proxyPort = 7890;
 

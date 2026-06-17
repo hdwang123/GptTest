@@ -1,5 +1,14 @@
 spring:
   mvc:
     async:
-      #设置API超时时间
+      # API timeout for SSE requests.
       request-timeout: 600000
+
+openai:
+  api-url: https://openrouter.ai/api/v1
+  api-key: sk-or-v1-XXX
+  model: gpt-4.1-mini
+  max-token: 2000
+  proxy:
+    host: 127.0.0.1
+    port: 7890
