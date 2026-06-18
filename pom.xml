@@ -21,18 +21,17 @@
     </parent>
 
     <dependencies>
-        <!-- OpenApi工具包 -->
-        <!-- 废弃 -->
-        <dependency>
-            <groupId>com.theokanning.openai-gpt3-java</groupId>
-            <artifactId>service</artifactId>
-            <version>0.12.0</version>
-        </dependency>
-
+        <!-- OpenAI 官方 Java SDK -->
         <dependency>
             <groupId>com.openai</groupId>
             <artifactId>openai-java</artifactId>
             <version>4.0.0</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.squareup.okhttp3</groupId>
+            <artifactId>okhttp</artifactId>
+            <version>4.9.3</version>
         </dependency>
 
         <!-- json数据解析工具包 -->

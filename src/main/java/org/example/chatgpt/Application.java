@@ -5,16 +5,14 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.scheduling.annotation.EnableAsync;
 
 /**
- * 项目启动类。
- *
- * @author wanghuidong
+ * 项目启动类，负责启动 Spring Boot 应用并启用异步任务。
  */
 @EnableAsync
 @SpringBootApplication
 public class Application {
 
     /**
-     * Spring Boot 应用入口方法。
+     * 启动 Spring Boot 应用。
      *
      * @param args 启动参数
      */

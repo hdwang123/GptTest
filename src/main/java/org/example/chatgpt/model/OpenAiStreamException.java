@@ -1,7 +1,7 @@
 package org.example.chatgpt.model;
 
 /**
- * OpenAI 流式调用过程中的业务异常。
+ * 模型流式调用过程中发生的业务异常。
  */
 public class OpenAiStreamException extends RuntimeException {
 

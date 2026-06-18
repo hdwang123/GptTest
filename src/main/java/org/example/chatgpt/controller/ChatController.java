@@ -3,7 +3,7 @@ package org.example.chatgpt.controller;
 import cn.hutool.core.util.IdUtil;
 import cn.hutool.core.util.StrUtil;
 import org.example.chatgpt.model.PendingMessage;
-import org.example.chatgpt.service.ChatServiceNew;
+import org.example.chatgpt.service.ChatService;
 import org.example.chatgpt.service.ImageService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -27,22 +27,16 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * 聊天控制器，负责接收前端消息、创建会话和建立 SSE 流式连接。
+ * 对话控制器，负责接收消息、建立 SSE 连接并提供本地图片访问接口。
  */
 @Controller
 @RequestMapping("/chat")
 public class ChatController {
 
-    /**
-     * 临时保存待消费消息。EventSource 只能发起 GET 请求，所以先用 POST 保存消息，再用消息 ID 建立 SSE 连接。
-     */
     private final Map<String, PendingMessage> msgMap = new ConcurrentHashMap<>();
 
-    /**
-     * 新版聊天服务。
-     */
     @Autowired
-    private ChatServiceNew chatService;
+    private ChatService chatService;
 
     @Autowired
     private ImageService imageService;
@@ -51,9 +45,9 @@ public class ChatController {
     private String imageStorageDir;
 
     /**
-     * 创建一个新的会话 ID。
+     * 创建新的会话编号。
      *
-     * @return 新会话 ID
+     * @return 新会话编号
      */
     @ResponseBody
     @PostMapping("/newSession")
@@ -62,11 +56,12 @@ public class ChatController {
     }
 
     /**
-     * 接收用户消息并生成消息 ID，供后续 SSE 请求使用。
+     * 暂存用户消息并返回消息编号，供后续 SSE 请求消费。
      *
-     * @param sessionId 当前会话 ID
+     * @param sessionId 当前会话编号
      * @param msg       用户输入内容
-     * @return 消息 ID
+     * @param mode      处理模式，支持 chat 和 image
+     * @return 消息编号
      */
     @ResponseBody
     @PostMapping("/sendMsg")
@@ -78,9 +73,9 @@ public class ChatController {
     }
 
     /**
-     * 根据消息 ID 建立 SSE 连接，并把模型输出流式推送给浏览器。
+     * 建立 SSE 连接，并根据消息模式调用聊天服务或图片服务。
      *
-     * @param msgId 消息 ID
+     * @param msgId 消息编号
      * @return SSE 连接对象
      */
     @GetMapping(value = "/conversation/{msgId}", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
@@ -106,6 +101,12 @@ public class ChatController {
         return sseEmitter;
     }
 
+    /**
+     * 读取本地生成的图片，并阻止访问图片目录之外的文件。
+     *
+     * @param fileName 图片文件名
+     * @return 图片资源响应
+     */
     @GetMapping("/image/{fileName:.+}")
     public ResponseEntity<Resource> image(@PathVariable("fileName") String fileName) {
         try {

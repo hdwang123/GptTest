@@ -1,18 +1,12 @@
 package org.example.chatgpt.model;
 
 /**
- * 等待建立 SSE 连接消费的用户消息。
+ * 等待 SSE 连接消费的用户消息。
  */
 public class PendingMessage {
 
-    /**
-     * 消息所属会话 ID。
-     */
     private final String sessionId;
 
-    /**
-     * 用户消息内容。
-     */
     private final String msg;
 
     private final String mode;
@@ -20,8 +14,9 @@ public class PendingMessage {
     /**
      * 创建待处理消息。
      *
-     * @param sessionId 消息所属会话 ID
-     * @param msg       用户消息内容
+     * @param sessionId 会话编号
+     * @param msg       用户消息
+     * @param mode      处理模式
      */
     public PendingMessage(String sessionId, String msg, String mode) {
         this.sessionId = sessionId;
@@ -30,23 +25,28 @@ public class PendingMessage {
     }
 
     /**
-     * 获取消息所属会话 ID。
+     * 获取会话编号。
      *
-     * @return 会话 ID
+     * @return 会话编号
      */
     public String getSessionId() {
         return sessionId;
     }
 
     /**
-     * 获取用户消息内容。
+     * 获取用户消息。
      *
-     * @return 用户消息内容
+     * @return 用户消息
      */
     public String getMsg() {
         return msg;
     }
 
+    /**
+     * 获取处理模式。
+     *
+     * @return 处理模式
+     */
     public String getMode() {
         return mode;
     }

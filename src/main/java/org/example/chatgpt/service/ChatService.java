@@ -1,140 +1,257 @@
 package org.example.chatgpt.service;
 
 import cn.hutool.core.util.StrUtil;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.theokanning.openai.OpenAiApi;
-import com.theokanning.openai.completion.chat.ChatCompletionChoice;
-import com.theokanning.openai.completion.chat.ChatCompletionRequest;
-import com.theokanning.openai.completion.chat.ChatMessage;
-import com.theokanning.openai.completion.chat.ChatMessageRole;
-import com.theokanning.openai.service.OpenAiService;
-import okhttp3.OkHttpClient;
+import com.openai.client.OpenAIClient;
+import com.openai.client.okhttp.OpenAIOkHttpClient;
+import com.openai.core.http.StreamResponse;
+import com.openai.models.responses.ResponseCreateParams;
+import com.openai.models.responses.ResponseStreamEvent;
+import org.example.chatgpt.model.ChatTurn;
+import org.example.chatgpt.model.OpenAiStreamException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
-import retrofit2.Retrofit;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.Proxy;
 import java.time.Duration;
-import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.Collections;
 import java.util.List;
-
-import static com.theokanning.openai.service.OpenAiService.defaultClient;
-import static com.theokanning.openai.service.OpenAiService.defaultObjectMapper;
-import static com.theokanning.openai.service.OpenAiService.defaultRetrofit;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * 旧版聊天服务，基于已废弃的第三方 OpenAI SDK 保留兼容。
- *
- * @author wanghuidong
+ * 聊天服务，负责调用 OpenAI 兼容接口并维护聊天上下文。
  */
 @Service
-@Deprecated
 public class ChatService {
 
-    /**
-     * 日志对象。
-     */
     private static final Logger LOG = LoggerFactory.getLogger(ChatService.class);
 
-    /**
-     * 旧版接口使用的 API Key 占位值。
-     */
-    String token = "sk-XXX";
+    private static final int MAX_HISTORY_TURNS = 10;
+
+    private final Map<String, List<ChatTurn>> sessionHistoryMap = new ConcurrentHashMap<>();
+
+    @Value("${openai.api-url}")
+    private String apiUrl;
+
+    @Value("${openai.api-key}")
+    private String apiKey;
+
+    @Value("${openai.model}")
+    private String model;
+
+    @Value("${openai.max-token}")
+    private long maxToken;
+
+    @Value("${openai.proxy.host}")
+    private String proxyHost;
+
+    @Value("${openai.proxy.port}")
+    private int proxyPort;
 
     /**
-     * HTTP 代理主机。
-     */
-    String proxyHost = "127.0.0.1";
-
-    /**
-     * HTTP 代理端口。
-     */
-    int proxyPort = 7890;
-
-    /**
-     * 旧版流式聊天入口，将模型返回内容通过 SSE 推送给前端。
+     * 执行不带会话上下文的流式聊天。
      *
-     * @param prompt     用户输入内容
+     * @param prompt     用户输入
      * @param sseEmitter SSE 连接对象
      */
     @Async
     public void streamChatCompletion(String prompt, SseEmitter sseEmitter) {
-        LOG.info("发送消息：{}", prompt);
-        final List<ChatMessage> messages = new ArrayList<>();
-        final ChatMessage systemMessage = new ChatMessage(ChatMessageRole.SYSTEM.value(), prompt);
-        messages.add(systemMessage);
-        ChatCompletionRequest chatCompletionRequest = ChatCompletionRequest
-                .builder()
-                .model("gpt-3.5-turbo")
-                .messages(messages)
-                .n(1)
-                .logitBias(new HashMap<>())
-                .build();
-
-        StringBuilder receiveMsgBuilder = new StringBuilder();
-        OpenAiService service = buildOpenAiService(token, proxyHost, proxyPort);
-        service.streamChatCompletion(chatCompletionRequest)
-                .doOnComplete(() -> {
-                    LOG.info("连接结束");
-                    sendStopEvent(sseEmitter);
-                    sseEmitter.complete();
-                })
-                .doOnError(throwable -> {
-                    LOG.error("连接异常", throwable);
-                    sendStopEvent(sseEmitter);
-                    sseEmitter.completeWithError(throwable);
-                })
-                .blockingForEach(x -> {
-                    ChatCompletionChoice choice = x.getChoices().get(0);
-                    LOG.debug("收到消息：{}", choice);
-                    if (StrUtil.isEmpty(choice.getFinishReason())) {
-                        sseEmitter.send(choice.getMessage());
-                    }
-                    String content = choice.getMessage().getContent();
-                    content = content == null ? StrUtil.EMPTY : content;
-                    receiveMsgBuilder.append(content);
-                });
-        LOG.info("收到的完整消息：{}", receiveMsgBuilder);
+        streamChatCompletion(null, prompt, sseEmitter);
     }
 
     /**
-     * 发送自定义 stop 事件，通知前端主动关闭 SSE 连接。
+     * 按会话执行流式聊天，并通过 SSE 推送模型回复。
+     *
+     * @param sessionId  会话编号
+     * @param prompt     用户输入
+     * @param sseEmitter SSE 连接对象
+     */
+    @Async
+    public void streamChatCompletion(String sessionId, String prompt, SseEmitter sseEmitter) {
+        LOG.info("发送聊天消息，sessionId={}，prompt={}", sessionId, prompt);
+
+        OpenAIClient client = null;
+        StringBuilder receiveMsgBuilder = new StringBuilder();
+
+        try {
+            client = buildOpenAiClient();
+            String input = buildInput(sessionId, prompt);
+            ResponseCreateParams params = ResponseCreateParams.builder()
+                    .model(model)
+                    .maxOutputTokens(maxToken)
+                    .input(input)
+                    .build();
+
+            try (StreamResponse<ResponseStreamEvent> streamResponse = client.responses().createStreaming(params)) {
+                streamResponse.stream()
+                        .forEach(event -> handleStreamEvent(event, sseEmitter, receiveMsgBuilder));
+            }
+
+            saveHistory(sessionId, prompt, receiveMsgBuilder.toString());
+            sendStopEvent(sseEmitter);
+            sseEmitter.complete();
+            LOG.info("聊天流式回复结束，完整消息={}", receiveMsgBuilder);
+        } catch (Exception e) {
+            LOG.error("聊天流式回复异常", e);
+            sendStopEventQuietly(sseEmitter);
+            sseEmitter.completeWithError(e);
+        } finally {
+            if (client != null) {
+                client.close();
+            }
+        }
+    }
+
+    /**
+     * 清理指定会话的聊天上下文。
+     *
+     * @param sessionId 会话编号
+     */
+    public void clearSession(String sessionId) {
+        if (StrUtil.isNotBlank(sessionId)) {
+            sessionHistoryMap.remove(sessionId);
+        }
+    }
+
+    /**
+     * 处理模型流式事件，并将文本增量发送给前端。
+     *
+     * @param event             模型流式事件
+     * @param sseEmitter        SSE 连接对象
+     * @param receiveMsgBuilder 当前回复缓存
+     */
+    private void handleStreamEvent(ResponseStreamEvent event, SseEmitter sseEmitter,
+                                   StringBuilder receiveMsgBuilder) {
+        if (event.isOutputTextDelta()) {
+            String content = event.asOutputTextDelta().delta();
+            content = content == null ? StrUtil.EMPTY : content;
+            receiveMsgBuilder.append(content);
+            sendMessage(sseEmitter, content);
+            return;
+        }
+
+        if (event.isError()) {
+            throw new OpenAiStreamException(event.asError().toString());
+        }
+    }
+
+    /**
+     * 向前端发送一段文本增量。
      *
      * @param sseEmitter SSE 连接对象
-     * @throws IOException SSE 发送失败时抛出
+     * @param content    文本增量
+     */
+    private void sendMessage(SseEmitter sseEmitter, String content) {
+        try {
+            sseEmitter.send(Collections.singletonMap("content", content));
+        } catch (IOException e) {
+            throw new OpenAiStreamException("发送 SSE 消息失败", e);
+        }
+    }
+
+    /**
+     * 发送停止事件，通知前端关闭 SSE 连接。
+     *
+     * @param sseEmitter SSE 连接对象
+     * @throws IOException 发送失败时抛出
      */
     private static void sendStopEvent(SseEmitter sseEmitter) throws IOException {
         sseEmitter.send(SseEmitter.event().name("stop").data(""));
     }
 
     /**
-     * 构建旧版 OpenAiService 客户端。
+     * 安静地发送停止事件，忽略客户端已断开造成的异常。
      *
-     * @param token     API Key
-     * @param proxyHost 代理主机
-     * @param proxyPort 代理端口
-     * @return 旧版 OpenAI 服务客户端
+     * @param sseEmitter SSE 连接对象
      */
-    private OpenAiService buildOpenAiService(String token, String proxyHost, int proxyPort) {
-        Proxy proxy = null;
-        if (StrUtil.isNotBlank(proxyHost)) {
-            proxy = new Proxy(Proxy.Type.HTTP, new InetSocketAddress(proxyHost, proxyPort));
+    private static void sendStopEventQuietly(SseEmitter sseEmitter) {
+        try {
+            sendStopEvent(sseEmitter);
+        } catch (IOException ignored) {
+            // 客户端可能已经关闭连接。
+        }
+    }
+
+    /**
+     * 根据配置创建 OpenAI 兼容客户端。
+     *
+     * @return OpenAI 客户端
+     */
+    private OpenAIClient buildOpenAiClient() {
+        if (StrUtil.isBlank(apiKey)) {
+            throw new IllegalStateException(
+                    "未配置 OPENROUTER_API_KEY，openrouter/free 免费模型仍需要 API Key。");
         }
 
-        OkHttpClient client = defaultClient(token, Duration.of(60, ChronoUnit.SECONDS))
-                .newBuilder()
-                .proxy(proxy)
-                .build();
-        ObjectMapper mapper = defaultObjectMapper();
-        Retrofit retrofit = defaultRetrofit(client, mapper);
-        OpenAiApi api = retrofit.create(OpenAiApi.class);
-        return new OpenAiService(api, client.dispatcher().executorService());
+        OpenAIOkHttpClient.Builder builder = OpenAIOkHttpClient.builder()
+                .apiKey(apiKey)
+                .timeout(Duration.ofSeconds(60));
+
+        if (StrUtil.isNotBlank(apiUrl)) {
+            builder.baseUrl(apiUrl);
+        }
+        if (StrUtil.isNotBlank(proxyHost)) {
+            builder.proxy(new Proxy(Proxy.Type.HTTP, new InetSocketAddress(proxyHost, proxyPort)));
+        }
+        return builder.build();
+    }
+
+    /**
+     * 拼接聊天历史和当前问题，构造发送给模型的完整输入。
+     *
+     * @param sessionId 会话编号
+     * @param prompt    当前用户输入
+     * @return 完整模型输入
+     */
+    private String buildInput(String sessionId, String prompt) {
+        if (StrUtil.isBlank(sessionId)) {
+            return prompt;
+        }
+
+        List<ChatTurn> history = sessionHistoryMap.get(sessionId);
+        if (history == null || history.isEmpty()) {
+            return prompt;
+        }
+
+        StringBuilder builder = new StringBuilder();
+        builder.append("以下是当前会话的历史对话，请结合上下文回答最后一个用户问题。\n\n");
+        synchronized (history) {
+            for (ChatTurn turn : history) {
+                builder.append("用户：").append(turn.getUserMsg()).append('\n');
+                builder.append("助手：").append(turn.getAssistantMsg()).append("\n\n");
+            }
+        }
+        builder.append("用户：").append(prompt).append('\n');
+        builder.append("助手：");
+        return builder.toString();
+    }
+
+    /**
+     * 保存一轮聊天记录，并限制每个会话的历史轮数。
+     *
+     * @param sessionId    会话编号
+     * @param userMsg      用户消息
+     * @param assistantMsg 助手回复
+     */
+    private void saveHistory(String sessionId, String userMsg, String assistantMsg) {
+        if (StrUtil.isBlank(sessionId)) {
+            return;
+        }
+
+        List<ChatTurn> history = sessionHistoryMap.computeIfAbsent(
+                sessionId, key -> Collections.synchronizedList(new ArrayList<>()));
+        synchronized (history) {
+            history.add(new ChatTurn(userMsg, assistantMsg));
+            while (history.size() > MAX_HISTORY_TURNS) {
+                history.remove(0);
+            }
+        }
     }
 }
