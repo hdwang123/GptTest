@@ -1,102 +1,135 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1180" height="760" viewBox="0 0 1180 760" role="img" aria-labelledby="title desc">
-  <title id="title">会话流转逻辑图</title>
-  <desc id="desc">展示浏览器、后端控制器、服务端上下文和 OpenAI 接口之间的聊天会话流转。</desc>
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="900" viewBox="0 0 1400 900" role="img" aria-labelledby="title desc">
+  <title id="title">GptTest 会话与模型分流原理图</title>
+  <desc id="desc">展示前端选择聊天或图片模式后，控制器如何分流到独立的聊天上下文和图片上下文，并通过 SSE 返回结果。</desc>
   <defs>
-    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
-      <path d="M0,0 L0,6 L9,3 z" fill="#3f4a5a"/>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L9,3 z" fill="#475569"/>
     </marker>
     <style>
-      .bg { fill: #f7f9fc; }
-      .lane { fill: #ffffff; stroke: #d9e1ec; stroke-width: 1.2; }
-      .laneTitle { fill: #162033; font: 700 16px "Microsoft YaHei", Arial, sans-serif; }
-      .laneSub { fill: #64748b; font: 12px "Microsoft YaHei", Arial, sans-serif; }
-      .step { fill: #eef4ff; stroke: #b7cdfd; stroke-width: 1.2; }
-      .stepAlt { fill: #f1f8f4; stroke: #b9dfc7; stroke-width: 1.2; }
-      .store { fill: #fff7ed; stroke: #fed7aa; stroke-width: 1.2; }
-      .ai { fill: #f6f0ff; stroke: #d8c3ff; stroke-width: 1.2; }
-      .text { fill: #1f2937; font: 14px "Microsoft YaHei", Arial, sans-serif; }
-      .small { fill: #475569; font: 12px "Microsoft YaHei", Arial, sans-serif; }
-      .arrow { stroke: #3f4a5a; stroke-width: 1.8; fill: none; marker-end: url(#arrow); }
-      .dashed { stroke-dasharray: 7 5; }
-      .note { fill: #ffffff; stroke: #e2e8f0; stroke-width: 1; }
-      .noteText { fill: #475569; font: 13px "Microsoft YaHei", Arial, sans-serif; }
+      text { font-family: "Microsoft YaHei", "Noto Sans CJK SC", Arial, sans-serif; }
+      .title { font-size: 28px; font-weight: 700; fill: #172033; }
+      .subtitle { font-size: 14px; fill: #64748b; }
+      .lane { fill: #ffffff; stroke: #d9e2ef; stroke-width: 1.5; }
+      .lane-title { font-size: 18px; font-weight: 700; fill: #172033; }
+      .lane-sub { font-size: 12px; fill: #64748b; }
+      .box-title { font-size: 15px; font-weight: 700; fill: #1f2937; }
+      .box-sub { font-size: 12px; fill: #526174; }
+      .common { fill: #edf4ff; stroke: #9dbcf7; stroke-width: 1.5; }
+      .chat { fill: #ecf8f2; stroke: #82c7a4; stroke-width: 1.5; }
+      .image { fill: #fff3e8; stroke: #f2b576; stroke-width: 1.5; }
+      .store { fill: #fff9dc; stroke: #dfc85f; stroke-width: 1.5; }
+      .external { fill: #f5efff; stroke: #bba0ee; stroke-width: 1.5; }
+      .note { fill: #f8fafc; stroke: #dbe3ed; stroke-width: 1.2; }
+      .arrow { fill: none; stroke: #475569; stroke-width: 2; marker-end: url(#arrow); }
+      .return { fill: none; stroke: #27836a; stroke-width: 2; stroke-dasharray: 7 5; marker-end: url(#arrow); }
+      .branch-chat { fill: none; stroke: #27836a; stroke-width: 2.2; marker-end: url(#arrow); }
+      .branch-image { fill: none; stroke: #d47a24; stroke-width: 2.2; marker-end: url(#arrow); }
+      .label { font-size: 12px; font-weight: 700; fill: #475569; }
     </style>
   </defs>
 
-  <rect class="bg" width="1180" height="760" rx="18"/>
+  <rect width="1400" height="900" rx="18" fill="#f5f7fb"/>
+  <text x="42" y="48" class="title">GptTest 会话与模型分流原理</text>
+  <text x="42" y="75" class="subtitle">同一会话可以切换聊天和图片模式；前端历史共用 sessionId，服务端聊天上下文与图片上下文独立保存。</text>
 
-  <text x="40" y="46" class="laneTitle" style="font-size:24px">GptTest 会话流转逻辑</text>
-  <text x="40" y="72" class="laneSub">前端负责展示和当前标签页历史；后端负责 SSE 推送和模型上下文；OpenAI/兼容接口负责生成回复。</text>
+  <rect x="40" y="105" width="265" height="675" rx="14" class="lane"/>
+  <rect x="330" y="105" width="265" height="675" rx="14" class="lane"/>
+  <rect x="620" y="105" width="440" height="675" rx="14" class="lane"/>
+  <rect x="1085" y="105" width="275" height="675" rx="14" class="lane"/>
 
-  <rect x="40" y="105" width="210" height="560" rx="14" class="lane"/>
-  <rect x="280" y="105" width="210" height="560" rx="14" class="lane"/>
-  <rect x="520" y="105" width="210" height="560" rx="14" class="lane"/>
-  <rect x="760" y="105" width="210" height="560" rx="14" class="lane"/>
-  <rect x="1000" y="105" width="140" height="560" rx="14" class="lane"/>
+  <text x="65" y="140" class="lane-title">浏览器页面</text>
+  <text x="65" y="161" class="lane-sub">chat.html + sessionStorage</text>
+  <text x="355" y="140" class="lane-title">后端入口</text>
+  <text x="355" y="161" class="lane-sub">ChatController + PendingMessage</text>
+  <text x="645" y="140" class="lane-title">独立服务与上下文</text>
+  <text x="645" y="161" class="lane-sub">同一 sessionId，不同内存 Map</text>
+  <text x="1110" y="140" class="lane-title">外部模型平台</text>
+  <text x="1110" y="161" class="lane-sub">文本与图片分别调用</text>
 
-  <text x="72" y="138" class="laneTitle">浏览器页面</text>
-  <text x="72" y="158" class="laneSub">chat.html</text>
-  <text x="314" y="138" class="laneTitle">当前标签页历史</text>
-  <text x="314" y="158" class="laneSub">sessionStorage</text>
-  <text x="554" y="138" class="laneTitle">后端控制器</text>
-  <text x="554" y="158" class="laneSub">ChatController</text>
-  <text x="794" y="138" class="laneTitle">聊天服务</text>
-  <text x="794" y="158" class="laneSub">ChatServiceNew</text>
-  <text x="1020" y="138" class="laneTitle">模型接口</text>
-  <text x="1020" y="158" class="laneSub">OpenAI API</text>
+  <rect x="68" y="195" width="208" height="74" rx="10" class="common"/>
+  <text x="88" y="222" class="box-title">选择处理模式</text>
+  <text x="88" y="245" class="box-sub">聊天 chat ｜ 图片 image</text>
 
-  <rect x="70" y="200" width="150" height="54" rx="10" class="step"/>
-  <text x="92" y="224" class="text">打开 / 刷新页面</text>
-  <text x="92" y="244" class="small">加载聊天 UI</text>
+  <rect x="68" y="300" width="208" height="82" rx="10" class="common"/>
+  <text x="88" y="328" class="box-title">POST /chat/sendMsg</text>
+  <text x="88" y="351" class="box-sub">sessionId + msg + mode</text>
+  <text x="88" y="369" class="box-sub">前端消息写入 sessionStorage</text>
 
-  <rect x="310" y="200" width="150" height="54" rx="10" class="store"/>
-  <text x="332" y="224" class="text">读取历史会话</text>
-  <text x="332" y="244" class="small">刷新页面仍保留</text>
+  <rect x="358" y="300" width="208" height="82" rx="10" class="common"/>
+  <text x="378" y="328" class="box-title">暂存 PendingMessage</text>
+  <text x="378" y="351" class="box-sub">生成并返回 msgId</text>
+  <text x="378" y="369" class="box-sub">ConcurrentHashMap</text>
 
-  <rect x="550" y="285" width="150" height="54" rx="10" class="step"/>
-  <text x="575" y="309" class="text">创建新会话</text>
-  <text x="575" y="329" class="small">返回 sessionId</text>
+  <rect x="68" y="414" width="208" height="72" rx="10" class="common"/>
+  <text x="88" y="442" class="box-title">建立 EventSource</text>
+  <text x="88" y="465" class="box-sub">GET /conversation/{msgId}</text>
 
-  <rect x="70" y="370" width="150" height="54" rx="10" class="step"/>
-  <text x="92" y="394" class="text">用户发送消息</text>
-  <text x="92" y="414" class="small">带 sessionId</text>
+  <rect x="358" y="414" width="208" height="72" rx="10" class="common"/>
+  <text x="378" y="442" class="box-title">读取消息并按 mode 分流</text>
+  <text x="378" y="465" class="box-sub">不再使用图片关键词判断</text>
 
-  <rect x="550" y="370" width="150" height="54" rx="10" class="step"/>
-  <text x="574" y="394" class="text">暂存消息</text>
-  <text x="574" y="414" class="small">返回 msgId</text>
+  <rect x="650" y="208" width="180" height="88" rx="10" class="chat"/>
+  <text x="670" y="235" class="box-title">ChatService</text>
+  <text x="670" y="258" class="box-sub">拼接最近 10 轮聊天</text>
+  <text x="670" y="278" class="box-sub">流式文本回复</text>
 
-  <rect x="70" y="455" width="150" height="54" rx="10" class="stepAlt"/>
-  <text x="90" y="479" class="text">建立 SSE 连接</text>
-  <text x="90" y="499" class="small">GET /conversation</text>
+  <rect x="850" y="208" width="180" height="88" rx="10" class="store"/>
+  <text x="870" y="235" class="box-title">聊天上下文</text>
+  <text x="870" y="258" class="box-sub">sessionHistoryMap</text>
+  <text x="870" y="278" class="box-sub">List&lt;ChatTurn&gt;</text>
 
-  <rect x="790" y="455" width="150" height="54" rx="10" class="step"/>
-  <text x="815" y="479" class="text">拼接上下文</text>
-  <text x="815" y="499" class="small">最近 10 轮</text>
+  <rect x="1115" y="208" width="215" height="88" rx="10" class="external"/>
+  <text x="1135" y="235" class="box-title">OpenRouter</text>
+  <text x="1135" y="258" class="box-sub">OpenAI Responses 兼容接口</text>
+  <text x="1135" y="278" class="box-sub">返回文本增量事件</text>
 
-  <rect x="1020" y="455" width="100" height="54" rx="10" class="ai"/>
-  <text x="1044" y="479" class="text">流式</text>
-  <text x="1032" y="499" class="small">生成回复</text>
+  <rect x="650" y="530" width="180" height="104" rx="10" class="image"/>
+  <text x="670" y="557" class="box-title">ImageService</text>
+  <text x="670" y="580" class="box-sub">提交异步生成任务</text>
+  <text x="670" y="600" class="box-sub">轮询状态并下载 PNG</text>
+  <text x="670" y="620" class="box-sub">保存至 generated-images</text>
 
-  <rect x="790" y="555" width="150" height="54" rx="10" class="store"/>
-  <text x="815" y="579" class="text">保存本轮上下文</text>
-  <text x="815" y="599" class="small">ChatTurn</text>
+  <rect x="850" y="530" width="180" height="104" rx="10" class="store"/>
+  <text x="870" y="557" class="box-title">图片上下文</text>
+  <text x="870" y="580" class="box-sub">sessionImageHistoryMap</text>
+  <text x="870" y="600" class="box-sub">List&lt;ImageTurn&gt;</text>
+  <text x="870" y="620" class="box-sub">最近 5 轮提示词</text>
 
-  <rect x="310" y="555" width="150" height="54" rx="10" class="store"/>
-  <text x="334" y="579" class="text">保存页面历史</text>
-  <text x="334" y="599" class="small">仅当前标签页</text>
+  <rect x="1115" y="530" width="215" height="104" rx="10" class="external"/>
+  <text x="1135" y="557" class="box-title">阿里云百炼</text>
+  <text x="1135" y="580" class="box-sub">通义万相 wanx-v1</text>
+  <text x="1135" y="600" class="box-sub">创建任务 + 查询任务</text>
+  <text x="1135" y="620" class="box-sub">返回临时图片 URL</text>
 
-  <path class="arrow" d="M220 227 L310 227"/>
-  <path class="arrow" d="M385 254 C385 312 455 312 550 312"/>
-  <path class="arrow" d="M550 328 C430 350 305 350 220 397"/>
-  <path class="arrow" d="M220 397 L550 397"/>
-  <path class="arrow" d="M625 424 C625 465 460 482 220 482"/>
-  <path class="arrow" d="M220 482 L790 482"/>
-  <path class="arrow" d="M940 482 L1020 482"/>
-  <path class="arrow dashed" d="M1020 505 C965 540 925 540 940 506"/>
-  <path class="arrow" d="M1020 505 C760 642 450 642 220 506"/>
-  <path class="arrow" d="M865 509 L865 555"/>
-  <path class="arrow" d="M220 506 C245 555 280 582 310 582"/>
+  <rect x="68" y="650" width="208" height="88" rx="10" class="chat"/>
+  <text x="88" y="677" class="box-title">统一接收 SSE</text>
+  <text x="88" y="700" class="box-sub">文本：持续追加 content</text>
+  <text x="88" y="720" class="box-sub">图片：展示 imageUrl</text>
 
-  <rect x="50" y="688" width="1080" height="42" rx="10" class="note"/>
-  <text x="70" y="714" class="noteText">关键点：sessionStorage 刷新保留、关闭标签页清空；后端 sessionHistoryMap 只存在内存里，用于让模型理解同一 sessionId 的上下文。</text>
+  <path d="M276 341 H358" class="arrow"/>
+  <path d="M462 382 V414" class="arrow"/>
+  <path d="M358 450 H276" class="arrow"/>
+
+  <path d="M566 438 C610 438,610 252,650 252" class="branch-chat"/>
+  <text x="588" y="327" class="label">mode=chat</text>
+  <path d="M566 462 C610 462,610 582,650 582" class="branch-image"/>
+  <text x="585" y="548" class="label">mode=image</text>
+
+  <path d="M830 252 H850" class="arrow"/>
+  <path d="M850 278 H830" class="return"/>
+  <path d="M830 236 C960 185,1040 185,1115 236" class="arrow"/>
+  <path d="M1115 270 C1040 322,940 322,830 270" class="return"/>
+
+  <path d="M830 582 H850" class="arrow"/>
+  <path d="M850 608 H830" class="return"/>
+  <path d="M830 558 C965 500,1040 500,1115 558" class="arrow"/>
+  <path d="M1115 610 C1035 680,930 680,830 610" class="return"/>
+
+  <path d="M650 280 C520 320,520 680,276 680" class="return"/>
+  <path d="M650 610 C500 650,470 708,276 708" class="return"/>
+
+  <rect x="40" y="807" width="1320" height="58" rx="10" class="note"/>
+  <text x="62" y="833" class="box-title">关键点</text>
+  <text x="132" y="833" class="box-sub">同一会话可随时切换模式；前端历史共用 sessionStorage；聊天与图片上下文分别保存在服务端内存中，互不读取，应用重启后同时清空。</text>
+  <text x="132" y="853" class="box-sub">EventSource 只能发 GET，因此先 POST 暂存消息并获取 msgId，再用 GET 建立 SSE 连接。</text>
 </svg>
