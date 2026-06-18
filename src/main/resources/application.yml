@@ -7,7 +7,7 @@ spring:
 openai:
   api-url: https://openrouter.ai/api/v1
   api-key: sk-your-api-key
-  model: gpt-4.1-mini
+  model: openrouter/free
   max-token: 2000
   image-api-url: https://openrouter.ai/api/v1
   image-api-key: sk-your-image-api-key
