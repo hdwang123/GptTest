@@ -15,15 +15,18 @@ public class PendingMessage {
      */
     private final String msg;
 
+    private final String mode;
+
     /**
      * 创建待处理消息。
      *
      * @param sessionId 消息所属会话 ID
      * @param msg       用户消息内容
      */
-    public PendingMessage(String sessionId, String msg) {
+    public PendingMessage(String sessionId, String msg, String mode) {
         this.sessionId = sessionId;
         this.msg = msg;
+        this.mode = mode;
     }
 
     /**
@@ -42,5 +45,9 @@ public class PendingMessage {
      */
     public String getMsg() {
         return msg;
+    }
+
+    public String getMode() {
+        return mode;
     }
 }

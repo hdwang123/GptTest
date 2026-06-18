@@ -70,10 +70,10 @@ public class ChatController {
      */
     @ResponseBody
     @PostMapping("/sendMsg")
-    public String sendMsg(String sessionId, String msg) {
+    public String sendMsg(String sessionId, String msg, String mode) {
         String msgId = IdUtil.simpleUUID();
         String currentSessionId = StrUtil.isBlank(sessionId) ? IdUtil.simpleUUID() : sessionId;
-        msgMap.put(msgId, new PendingMessage(currentSessionId, msg));
+        msgMap.put(msgId, new PendingMessage(currentSessionId, msg, mode));
         return msgId;
     }
 
@@ -93,8 +93,12 @@ public class ChatController {
             return sseEmitter;
         }
 
-        if (imageService.isImageRequest(pendingMessage.getMsg())
-                || imageService.isImageFollowUp(pendingMessage.getSessionId(), pendingMessage.getMsg())) {
+        boolean imageMode = "image".equalsIgnoreCase(pendingMessage.getMode());
+        boolean legacyAutoImageMode = StrUtil.isBlank(pendingMessage.getMode())
+                && (imageService.isImageRequest(pendingMessage.getMsg())
+                || imageService.isImageFollowUp(pendingMessage.getSessionId(), pendingMessage.getMsg()));
+
+        if (imageMode || legacyAutoImageMode) {
             imageService.streamImageGeneration(pendingMessage.getSessionId(), pendingMessage.getMsg(), sseEmitter);
         } else {
             chatService.streamChatCompletion(pendingMessage.getSessionId(), pendingMessage.getMsg(), sseEmitter);

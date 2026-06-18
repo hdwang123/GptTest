@@ -213,16 +213,18 @@ public class ChatServiceNew {
      * @return OpenAI 客户端
      */
     private OpenAIClient buildOpenAiClient() {
+        if (StrUtil.isBlank(apiKey)) {
+            throw new IllegalStateException(
+                    "OPENROUTER_API_KEY is not configured. "
+                            + "The openrouter/free model still requires an API key.");
+        }
+
         OpenAIOkHttpClient.Builder builder = OpenAIOkHttpClient.builder()
-                .fromEnv()
+                .apiKey(apiKey)
                 .timeout(Duration.ofSeconds(60));
 
         if (StrUtil.isNotBlank(apiUrl)) {
             builder.baseUrl(apiUrl);
-        }
-
-        if (StrUtil.isNotBlank(apiKey)) {
-            builder.apiKey(apiKey);
         }
 
         if (StrUtil.isNotBlank(proxyHost)) {

@@ -59,11 +59,17 @@ public class ImageService {
     @Value("${openai.image-model}")
     private String imageModel;
 
+    @Value("${openai.image-task-api-url}")
+    private String imageTaskApiUrl;
+
     @Value("${openai.image-size}")
     private String imageSize;
 
-    @Value("${openai.image-max-token}")
-    private long imageMaxToken;
+    @Value("${openai.image-poll-interval-ms}")
+    private long imagePollIntervalMs;
+
+    @Value("${openai.image-poll-max-attempts}")
+    private int imagePollMaxAttempts;
 
     @Value("${openai.proxy.host}")
     private String proxyHost;
@@ -155,11 +161,13 @@ public class ImageService {
 
     private ImageResult generateImage(String sessionId, String prompt) throws IOException {
         OkHttpClient client = buildHttpClient();
-        String requestJson = buildOpenRouterImageRequest(sessionId, prompt);
+        validateDashScopeConfig();
+        String requestJson = buildDashScopeImageRequest(sessionId, prompt);
 
         Request request = new Request.Builder()
                 .url(buildImageGenerationUrl())
                 .header("Authorization", "Bearer " + imageApiKey)
+                .header("X-DashScope-Async", "enable")
                 .header("Content-Type", "application/json")
                 .header("User-Agent", "GptTest/1.0")
                 .post(RequestBody.create(requestJson, JSON_MEDIA_TYPE))
@@ -175,15 +183,14 @@ public class ImageService {
                         + ", response=" + responseJson);
             }
 
-            String sourceImageUrl = findImageUrl(objectMapper.readTree(responseJson));
-            if (StrUtil.isNotBlank(sourceImageUrl)) {
-                if (sourceImageUrl.startsWith("data:image/")) {
-                    return new ImageResult(saveDataUrlImage(sourceImageUrl), sourceImageUrl);
-                }
-                return new ImageResult(sourceImageUrl, sourceImageUrl);
+            String taskId = objectMapper.readTree(responseJson).path("output").path("task_id").asText();
+            if (StrUtil.isNotBlank(taskId)) {
+                String sourceImageUrl = waitForImage(client, taskId);
+                String publicUrl = downloadImage(client, sourceImageUrl);
+                return new ImageResult(publicUrl, sourceImageUrl);
             }
 
-            throw new IOException("Image generation response does not contain image data.");
+            throw new IOException("Image generation response does not contain task_id.");
         }
     }
 
@@ -248,28 +255,19 @@ public class ImageService {
     }
 
     private String buildImageGenerationUrl() {
-        return StrUtil.removeSuffix(imageApiUrl, "/") + "/chat/completions";
+        return imageApiUrl;
     }
 
-    private String buildOpenRouterImageRequest(String sessionId, String prompt) {
+    private String buildDashScopeImageRequest(String sessionId, String prompt) {
         ObjectNode root = objectMapper.createObjectNode();
         root.put("model", imageModel);
-        root.put("stream", false);
-        root.put("max_tokens", imageMaxToken);
 
-        ArrayNode modalities = root.putArray("modalities");
-        modalities.add("image");
-        modalities.add("text");
+        ObjectNode input = root.putObject("input");
+        input.put("prompt", buildImagePrompt(sessionId, prompt));
 
-        ArrayNode messages = root.putArray("messages");
-        appendHistoryMessages(messages, sessionId);
-        appendCurrentImageMessage(messages, sessionId, prompt);
-
-        if (StrUtil.isNotBlank(imageSize)) {
-            ObjectNode imageConfig = root.putObject("image_config");
-            imageConfig.put("image_size", imageSize);
-        }
-
+        ObjectNode parameters = root.putObject("parameters");
+        parameters.put("size", imageSize);
+        parameters.put("n", 1);
         return root.toString();
     }
 
@@ -332,6 +330,93 @@ public class ImageService {
         }
     }
 
+    private String buildImagePrompt(String sessionId, String prompt) {
+        if (StrUtil.isBlank(sessionId)) {
+            return prompt;
+        }
+
+        List<ImageTurn> history = sessionImageHistoryMap.get(sessionId);
+        if (history == null || history.isEmpty()) {
+            return prompt;
+        }
+
+        synchronized (history) {
+            return history.get(history.size() - 1).getPrompt() + "\n" + prompt;
+        }
+    }
+
+    private void validateDashScopeConfig() throws IOException {
+        if (StrUtil.isBlank(imageApiKey)) {
+            throw new IOException("DASHSCOPE_API_KEY is not configured.");
+        }
+    }
+
+    private String waitForImage(OkHttpClient client, String taskId) throws IOException {
+        String taskUrl = StrUtil.removeSuffix(imageTaskApiUrl, "/") + "/" + taskId;
+
+        for (int attempt = 0; attempt < imagePollMaxAttempts; attempt++) {
+            Request request = new Request.Builder()
+                    .url(taskUrl)
+                    .header("Authorization", "Bearer " + imageApiKey)
+                    .header("User-Agent", "GptTest/1.0")
+                    .get()
+                    .build();
+
+            try (Response response = executeWithSslRetry(client, request)) {
+                ResponseBody body = response.body();
+                String responseJson = body == null ? "" : body.string();
+                if (!response.isSuccessful()) {
+                    throw new IOException("Image task query failed: HTTP " + response.code()
+                            + ", response=" + responseJson);
+                }
+
+                JsonNode output = objectMapper.readTree(responseJson).path("output");
+                String status = output.path("task_status").asText();
+                if ("SUCCEEDED".equals(status)) {
+                    String imageUrl = output.path("results").path(0).path("url").asText();
+                    if (StrUtil.isBlank(imageUrl)) {
+                        throw new IOException("Image task succeeded without an image URL.");
+                    }
+                    return imageUrl;
+                }
+                if ("FAILED".equals(status) || "CANCELED".equals(status)
+                        || "UNKNOWN".equals(status)) {
+                    throw new IOException("Image task failed: status=" + status
+                            + ", response=" + responseJson);
+                }
+            }
+
+            sleepBeforeNextPoll();
+        }
+
+        throw new IOException("Image generation timed out: taskId=" + taskId);
+    }
+
+    private void sleepBeforeNextPoll() throws IOException {
+        try {
+            Thread.sleep(imagePollIntervalMs);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IOException("Image task polling was interrupted.", e);
+        }
+    }
+
+    private String downloadImage(OkHttpClient client, String sourceImageUrl) throws IOException {
+        Request request = new Request.Builder()
+                .url(sourceImageUrl)
+                .header("User-Agent", "GptTest/1.0")
+                .get()
+                .build();
+
+        try (Response response = executeWithSslRetry(client, request)) {
+            ResponseBody body = response.body();
+            if (!response.isSuccessful() || body == null) {
+                throw new IOException("Image download failed: HTTP " + response.code());
+            }
+            return saveImageBytes(body.bytes(), "png");
+        }
+    }
+
     private void saveHistory(String sessionId, String prompt, ImageResult imageResult) {
         if (StrUtil.isBlank(sessionId)) {
             return;
@@ -389,12 +474,16 @@ public class ImageService {
     }
 
     private String saveBase64Image(String b64Json, String extension) throws IOException {
+        return saveImageBytes(Base64.getDecoder().decode(b64Json), extension);
+    }
+
+    private String saveImageBytes(byte[] imageBytes, String extension) throws IOException {
         Path storagePath = Paths.get(imageStorageDir).toAbsolutePath().normalize();
         Files.createDirectories(storagePath);
 
         String fileName = UUID.randomUUID().toString().replace("-", "") + "." + extension;
         Path imagePath = storagePath.resolve(fileName);
-        Files.write(imagePath, Base64.getDecoder().decode(b64Json));
+        Files.write(imagePath, imageBytes);
 
         return StrUtil.removeSuffix(imagePublicUrlPrefix, "/") + "/" + fileName;
     }
