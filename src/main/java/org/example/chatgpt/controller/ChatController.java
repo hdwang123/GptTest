@@ -88,12 +88,7 @@ public class ChatController {
             return sseEmitter;
         }
 
-        boolean imageMode = "image".equalsIgnoreCase(pendingMessage.getMode());
-        boolean legacyAutoImageMode = StrUtil.isBlank(pendingMessage.getMode())
-                && (imageService.isImageRequest(pendingMessage.getMsg())
-                || imageService.isImageFollowUp(pendingMessage.getSessionId(), pendingMessage.getMsg()));
-
-        if (imageMode || legacyAutoImageMode) {
+        if ("image".equalsIgnoreCase(pendingMessage.getMode())) {
             imageService.streamImageGeneration(pendingMessage.getSessionId(), pendingMessage.getMsg(), sseEmitter);
         } else {
             chatService.streamChatCompletion(pendingMessage.getSessionId(), pendingMessage.getMsg(), sseEmitter);

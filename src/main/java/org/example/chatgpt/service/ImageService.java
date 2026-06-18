@@ -34,7 +34,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -85,81 +84,6 @@ public class ImageService {
 
     @Value("${openai.image-public-url-prefix}")
     private String imagePublicUrlPrefix;
-
-    /**
-     * 判断文本是否包含常见的图片生成意图。
-     *
-     * @param prompt 用户输入
-     * @return 是否为图片生成请求
-     */
-    public boolean isImageRequest(String prompt) {
-        if (StrUtil.isBlank(prompt)) {
-            return false;
-        }
-
-        String lowerPrompt = prompt.toLowerCase(Locale.ROOT);
-        return lowerPrompt.contains("生成图片")
-                || lowerPrompt.contains("画一")
-                || lowerPrompt.contains("画个")
-                || lowerPrompt.contains("画张")
-                || lowerPrompt.contains("绘制")
-                || lowerPrompt.contains("做一张")
-                || lowerPrompt.contains("图片")
-                || lowerPrompt.contains("海报")
-                || lowerPrompt.contains("插画")
-                || lowerPrompt.contains("logo")
-                || lowerPrompt.contains("draw ")
-                || lowerPrompt.contains("generate an image")
-                || lowerPrompt.contains("create an image")
-                || lowerPrompt.contains("make an image");
-    }
-
-    /**
-     * 判断文本是否为已有图片会话的后续修改请求。
-     *
-     * @param sessionId 会话编号
-     * @param prompt    用户输入
-     * @return 是否为图片后续请求
-     */
-    public boolean isImageFollowUp(String sessionId, String prompt) {
-        if (!hasImageHistory(sessionId) || StrUtil.isBlank(prompt)) {
-            return false;
-        }
-
-        String lowerPrompt = prompt.toLowerCase(Locale.ROOT);
-        return lowerPrompt.contains("它")
-                || lowerPrompt.contains("这张")
-                || lowerPrompt.contains("上一张")
-                || lowerPrompt.contains("刚才")
-                || lowerPrompt.contains("改")
-                || lowerPrompt.contains("换")
-                || lowerPrompt.contains("加")
-                || lowerPrompt.contains("去掉")
-                || lowerPrompt.contains("背景")
-                || lowerPrompt.contains("颜色")
-                || lowerPrompt.contains("风格")
-                || lowerPrompt.contains("it")
-                || lowerPrompt.contains("this image")
-                || lowerPrompt.contains("previous image")
-                || lowerPrompt.contains("change")
-                || lowerPrompt.contains("make it")
-                || lowerPrompt.contains("add ")
-                || lowerPrompt.contains("remove ");
-    }
-
-    /**
-     * 判断指定会话是否存在图片历史。
-     *
-     * @param sessionId 会话编号
-     * @return 是否存在图片历史
-     */
-    private boolean hasImageHistory(String sessionId) {
-        if (StrUtil.isBlank(sessionId)) {
-            return false;
-        }
-        List<ImageTurn> history = sessionImageHistoryMap.get(sessionId);
-        return history != null && !history.isEmpty();
-    }
 
     /**
      * 异步生成图片，并通过 SSE 向前端发送进度和结果。
